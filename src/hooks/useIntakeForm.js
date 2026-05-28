@@ -1,8 +1,11 @@
 import { useState, useCallback, useRef } from 'react'
 
 /**
- * useIntakeForm
- * Centralises all state and handlers for the Candidate Intake Flow.
+ * useIntakeForm  (Phase 3 update)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Added: real API submission to POST /api/upload via FormData.
+ * The hook now tracks `isSubmitting` and `apiResult` alongside the existing
+ * form state so the success screen can display parsed data.
  *
  * Returns:
  *  resumeFile      – File | null
@@ -10,8 +13,11 @@ import { useState, useCallback, useRef } from 'react'
  *  jdFile          – File | null
  *  jdMode          – 'text' | 'file'
  *  dragState       – 'idle' | 'over' | 'reject'
- *  errors          – { resume?: string, jd?: string }
+ *  errors          – { resume?: string, jd?: string, api?: string }
  *  isReady         – boolean (form is submittable)
+ *  isSubmitting    – boolean (network request in flight)
+ *  submitted       – boolean (request succeeded)
+ *  apiResult       – { resumeText, jobDescription, meta } | null
  *  handlers        – all event handlers
  */
 export function useIntakeForm() {
@@ -22,6 +28,8 @@ export function useIntakeForm() {
   const [dragState, setDragState]     = useState('idle')   // 'idle' | 'over' | 'reject'
   const [errors, setErrors]           = useState({})
   const [submitted, setSubmitted]     = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [apiResult, setApiResult]     = useState(null)
   const dragCounter                   = useRef(0)
 
   /* ── Helpers ─────────────────────────────────────── */
@@ -55,9 +63,7 @@ export function useIntakeForm() {
     if (dragCounter.current === 0) setDragState('idle')
   }, [])
 
-  const onDragOver = useCallback((e) => {
-    e.preventDefault()
-  }, [])
+  const onDragOver = useCallback((e) => { e.preventDefault() }, [])
 
   const onDrop = useCallback((e) => {
     e.preventDefault()
@@ -71,9 +77,7 @@ export function useIntakeForm() {
     if (file) acceptResumeFile(file)
   }, [acceptResumeFile])
 
-  const removeResume = useCallback(() => {
-    setResumeFile(null)
-  }, [])
+  const removeResume = useCallback(() => setResumeFile(null), [])
 
   /* ── JD handlers ─────────────────────────────────── */
   const onJdTextChange = useCallback((e) => {
@@ -83,10 +87,7 @@ export function useIntakeForm() {
 
   const onJdFileChange = useCallback((e) => {
     const file = e.target.files?.[0]
-    if (file) {
-      setJdFile(file)
-      clearError('jd')
-    }
+    if (file) { setJdFile(file); clearError('jd') }
   }, [])
 
   const removeJdFile = useCallback(() => setJdFile(null), [])
@@ -98,7 +99,7 @@ export function useIntakeForm() {
     clearError('jd')
   }, [])
 
-  /* ── Validation & submit ─────────────────────────── */
+  /* ── Validation ──────────────────────────────────── */
   const validate = () => {
     const next = {}
     if (!resumeFile)                              next.resume = 'Please upload your résumé PDF.'
@@ -108,28 +109,47 @@ export function useIntakeForm() {
     return Object.keys(next).length === 0
   }
 
-  const onSubmit = useCallback((e) => {
+  /* ── Submit → POST /api/upload ───────────────────── */
+  const onSubmit = useCallback(async (e) => {
     e.preventDefault()
     if (!validate()) return
 
-    const payload = {
-      resume: {
-        name:     resumeFile.name,
-        size:     resumeFile.size,
-        type:     resumeFile.type,
-        lastModified: resumeFile.lastModified,
-      },
-      jobDescription: jdMode === 'text'
-        ? { mode: 'text',  content: jdText.trim() }
-        : { mode: 'file',  name: jdFile.name, size: jdFile.size },
-      timestamp: new Date().toISOString(),
+    // Build multipart payload
+    const formData = new FormData()
+    formData.append('resume', resumeFile)
+
+    // JD: if file mode, read it as text first; otherwise send the textarea value
+    let jdContent = jdText.trim()
+    if (jdMode === 'file' && jdFile) {
+      jdContent = await jdFile.text()
     }
+    formData.append('jobDescription', jdContent)
 
-    console.group('%c[Deep-Dive] Intake Form Submitted', 'color:#4F6EF7;font-weight:bold')
-    console.log('Payload:', payload)
-    console.groupEnd()
+    setIsSubmitting(true)
+    clearError('api')
 
-    setSubmitted(true)
+    try {
+      const res = await fetch('/api/upload', {
+        method: 'POST',
+        body: formData,
+        // Note: do NOT set Content-Type manually — the browser sets it with
+        // the correct boundary when you pass a FormData body.
+      })
+
+      const json = await res.json()
+
+      if (!res.ok || !json.success) {
+        throw new Error(json.error || `Server error ${res.status}`)
+      }
+
+      setApiResult(json.data)
+      setSubmitted(true)
+    } catch (err) {
+      setErrors((prev) => ({ ...prev, api: err.message }))
+    } finally {
+      setIsSubmitting(false)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resumeFile, jdText, jdFile, jdMode])
 
   const resetForm = useCallback(() => {
@@ -139,6 +159,8 @@ export function useIntakeForm() {
     setJdMode('text')
     setErrors({})
     setSubmitted(false)
+    setIsSubmitting(false)
+    setApiResult(null)
   }, [])
 
   /* ── Derived ─────────────────────────────────────── */
@@ -149,6 +171,7 @@ export function useIntakeForm() {
   return {
     resumeFile, jdText, jdFile, jdMode,
     dragState, errors, isReady, submitted,
+    isSubmitting, apiResult,
     handlers: {
       onDragEnter, onDragLeave, onDragOver, onDrop,
       onResumeInputChange, removeResume,

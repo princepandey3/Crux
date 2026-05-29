@@ -1,12 +1,20 @@
-import pdfParse from 'pdf-parse/lib/pdf-parse.js'
-
-// ─── Helpers ─────────────────────────────────────────────────────────────────
-
 /**
- * Normalise whitespace that survives PDF extraction:
- *  • Collapse runs of spaces/tabs inside lines
- *  • Collapse 3+ consecutive blank lines down to 2 (keeps section spacing)
+ * src/controllers/upload.controller.js  (Phase 4 — replaces Phase 3 version)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * POST /api/upload
+ *
+ * Full pipeline:
+ *   1. Validate multipart fields (resume PDF + jobDescription text)
+ *   2. Extract raw text from PDF via pdf-parse
+ *   3. Ingest: chunk → embed → insert vectors into Supabase  [NEW in Phase 4]
+ *   4. Generate: RAG retrieval → LLM → opening interview question  [NEW]
+ *   5. Return session ID + question + source excerpts to the client
  */
+
+import pdfParse         from 'pdf-parse/lib/pdf-parse.js'
+import { ingestDocuments, generateOpeningQuestion } from '../services/ragPipeline.js'
+
+// ── Text normaliser (carried over from Phase 3) ───────────────────────────────
 function cleanPdfText(raw) {
   return raw
     .split('\n')
@@ -16,37 +24,14 @@ function cleanPdfText(raw) {
     .trim()
 }
 
-// ─── Controller ──────────────────────────────────────────────────────────────
-
-/**
- * POST /api/upload
- *
- * Accepts:
- *   resume         – PDF file (multipart/form-data, field name: "resume")
- *   jobDescription – plain-text string  (multipart/form-data, field name: "jobDescription")
- *
- * Returns (Phase 3 — parsing only, no DB write yet):
- *   {
- *     success: true,
- *     data: {
- *       resumeText:     string,   // raw text extracted from PDF
- *       jobDescription: string,   // JD as received from the client
- *       meta: {
- *         fileName:    string,
- *         fileSizeKb:  number,
- *         pageCount:   number,
- *         parsedAt:    ISO-8601 string,
- *       }
- *     }
- *   }
- */
+// ── Controller ────────────────────────────────────────────────────────────────
 export async function handleUpload(req, res, next) {
   try {
-    // ── 1. Validate multipart fields ────────────────────────────────────────
+    // ── 1. Validate ─────────────────────────────────────────────────────────
     if (!req.file) {
       return res.status(400).json({
         success: false,
-        error: 'No résumé PDF was attached. Expected field name: "resume".',
+        error: 'No résumé PDF attached. Expected field name: "resume".',
       })
     }
 
@@ -58,7 +43,7 @@ export async function handleUpload(req, res, next) {
       })
     }
 
-    // ── 2. Parse PDF buffer ──────────────────────────────────────────────────
+    // ── 2. Parse PDF ─────────────────────────────────────────────────────────
     let parsed
     try {
       parsed = await pdfParse(req.file.buffer)
@@ -70,7 +55,6 @@ export async function handleUpload(req, res, next) {
     }
 
     const resumeText = cleanPdfText(parsed.text)
-
     if (!resumeText) {
       return res.status(422).json({
         success: false,
@@ -80,17 +64,33 @@ export async function handleUpload(req, res, next) {
       })
     }
 
-    // ── 3. Return parsed data (Phase 4 will persist to Supabase) ────────────
+    // ── 3. Ingest (chunk + embed + store) ────────────────────────────────────
+    const meta = {
+      fileName:   req.file.originalname,
+      fileSizeKb: Math.round(req.file.size / 1024),
+      pageCount:  parsed.numpages,
+    }
+
+    const { sessionId, chunkCount } = await ingestDocuments({
+      resumeText,
+      jobDescription,
+      meta,
+    })
+
+    // ── 4. Generate opening question ─────────────────────────────────────────
+    const { question, sources } = await generateOpeningQuestion(sessionId)
+
+    // ── 5. Respond ───────────────────────────────────────────────────────────
     return res.status(200).json({
       success: true,
       data: {
-        resumeText,
-        jobDescription,
+        sessionId,
+        question,
+        sources,
         meta: {
-          fileName:   req.file.originalname,
-          fileSizeKb: Math.round(req.file.size / 1024),
-          pageCount:  parsed.numpages,
-          parsedAt:   new Date().toISOString(),
+          ...meta,
+          chunkCount,
+          parsedAt: new Date().toISOString(),
         },
       },
     })

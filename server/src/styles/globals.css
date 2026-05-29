@@ -1,0 +1,95 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-ink text-fog font-body;
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    @apply bg-accent/30 text-fog;
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-ink;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-slate/40 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-slate/70;
+  }
+}
+
+@layer components {
+  /* Reusable glass card */
+  .glass-card {
+    @apply bg-white/[0.04] border border-white/[0.08] rounded-2xl backdrop-blur-sm;
+  }
+
+  /* Accent underline hover */
+  .nav-link {
+    @apply relative text-slate text-sm font-medium transition-colors duration-200 hover:text-fog;
+  }
+  .nav-link::after {
+    content: '';
+    @apply absolute -bottom-0.5 left-0 w-0 h-px bg-accent transition-all duration-300;
+  }
+  .nav-link:hover::after,
+  .nav-link.active::after {
+    @apply w-full;
+  }
+  .nav-link.active {
+    @apply text-fog;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+           bg-accent text-white text-sm font-medium
+           transition-all duration-200
+           hover:bg-accent/90 hover:shadow-lg hover:shadow-accent/25
+           active:scale-[0.97];
+  }
+
+  /* Ghost button */
+  .btn-ghost {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 rounded-xl
+           border border-white/10 text-fog/70 text-sm font-medium
+           transition-all duration-200
+           hover:border-white/20 hover:text-fog hover:bg-white/[0.04]
+           active:scale-[0.97];
+  }
+
+  /* Section label */
+  .label-mono {
+    @apply font-mono text-xs tracking-widest uppercase text-accent/80;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-clip-text text-transparent bg-gradient-to-r from-fog via-fog/90 to-slate;
+  }
+
+  .animate-delay-100 { animation-delay: 100ms; }
+  .animate-delay-200 { animation-delay: 200ms; }
+  .animate-delay-300 { animation-delay: 300ms; }
+  .animate-delay-400 { animation-delay: 400ms; }
+  .animate-delay-500 { animation-delay: 500ms; }
+}

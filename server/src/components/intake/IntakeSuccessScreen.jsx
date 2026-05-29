@@ -58,7 +58,7 @@ export default function IntakeSuccessScreen({ resumeFile, apiResult, onReset }) 
             {apiResult.sources.map((s, i) => (
               <li key={i} className="text-xs text-slate/70 leading-relaxed">
                 <span className={`font-semibold mr-1 ${s.source === 'resume' ? 'text-accent' : 'text-purple-400'}`}>
-                  [{s.source === 'resume' ? 'Résumé' : s.source === 'job_description' ? 'JD' : s.source}]
+                  [{s.source === 'resume' ? 'Résumé' : 'JD'}]
                 </span>
                 {s.excerpt}
               </li>

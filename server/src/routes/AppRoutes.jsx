@@ -1,18 +1,15 @@
 import React from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
-import HomePage from '@/pages/HomePage.jsx'
+import HomePage      from '@/pages/HomePage.jsx'
 import DashboardPage from '@/pages/DashboardPage.jsx'
+import ChatPage      from '@/pages/ChatPage.jsx'
 
-/**
- * AppRoutes
- * Central route registry. Add new routes here as phases expand.
- */
 export default function AppRoutes() {
   return (
     <Routes>
       <Route path="/"          element={<HomePage />} />
       <Route path="/dashboard" element={<DashboardPage />} />
-      {/* Catch-all redirect */}
+      <Route path="/chat"      element={<ChatPage />} />
       <Route path="*"          element={<Navigate to="/" replace />} />
     </Routes>
   )

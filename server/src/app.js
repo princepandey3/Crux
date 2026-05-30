@@ -1,12 +1,18 @@
-import express from 'express'
-import cors from 'cors'
+/**
+ * src/app.js  (Phase 5 update)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * Phase 5 change: mount chat routes at /api
+ */
+
+import express     from 'express'
+import cors        from 'cors'
 import uploadRoutes from './routes/upload.routes.js'
+import chatRoutes   from './routes/chat.routes.js'        // NEW
 import { errorHandler } from './middleware/errorHandler.js'
 
 const app = express()
 
-// ── CORS ────────────────────────────────────────────────────────────────────
-// Allow requests from the Vite dev server; tighten in production.
+// ── CORS ─────────────────────────────────────────────────────────────────────
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
   .split(',')
   .map((o) => o.trim())
@@ -14,7 +20,6 @@ const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173')
 app.use(
   cors({
     origin: (origin, cb) => {
-      // Allow server-to-server calls (no Origin header) and listed origins
       if (!origin || allowedOrigins.includes(origin)) return cb(null, true)
       cb(new Error(`CORS: origin '${origin}' not allowed`))
     },
@@ -23,17 +28,18 @@ app.use(
   })
 )
 
-// ── Body parsers ─────────────────────────────────────────────────────────────
-// multer handles multipart/form-data; express.json covers any future JSON routes
+// ── Body parsers ──────────────────────────────────────────────────────────────
+// multer handles multipart/form-data; express.json covers all JSON API routes
 app.use(express.json({ limit: '1mb' }))
 
-// ── Health check ─────────────────────────────────────────────────────────────
+// ── Health check ──────────────────────────────────────────────────────────────
 app.get('/health', (_req, res) => res.json({ status: 'ok' }))
 
-// ── API routes ───────────────────────────────────────────────────────────────
+// ── API routes ────────────────────────────────────────────────────────────────
 app.use('/api', uploadRoutes)
+app.use('/api', chatRoutes)   // NEW — mounts POST /api/chat
 
-// ── Global error handler (must be last) ─────────────────────────────────────
+// ── Global error handler (must be last) ──────────────────────────────────────
 app.use(errorHandler)
 
 export default app

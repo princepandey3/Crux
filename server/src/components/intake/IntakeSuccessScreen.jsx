@@ -1,14 +1,28 @@
+/**
+ * src/components/intake/IntakeSuccessScreen.jsx  (Phase 5)
+ * ─────────────────────────────────────────────────────────────────────────────
+ * FIX: removed manual encodeURIComponent() on question — URLSearchParams
+ * already encodes values, so double-encoding caused garbled text on ChatPage.
+ */
+
 import React from 'react'
-import { CheckCircle2, RotateCcw, MessageSquare, BookOpen } from 'lucide-react'
+import { CheckCircle2, RotateCcw, MessageSquare, BookOpen, ArrowRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import StatusBadge from '@/components/ui/StatusBadge.jsx'
 
-/**
- * IntakeSuccessScreen
- * Shown after a successful submission.
- * FIX: now displays the opening interview question and source excerpts
- * from apiResult instead of the stale Phase-2 "logged to console" copy.
- */
 export default function IntakeSuccessScreen({ resumeFile, apiResult, onReset }) {
+  const navigate = useNavigate()
+
+  function startInterview() {
+    if (!apiResult?.sessionId || !apiResult?.question) return
+    // FIX: URLSearchParams encodes values automatically — do NOT wrap in encodeURIComponent
+    const params = new URLSearchParams({
+      sessionId: apiResult.sessionId,
+      question:  apiResult.question,
+    })
+    navigate(`/chat?${params.toString()}`)
+  }
+
   return (
     <div className="flex flex-col items-center text-center py-10 px-4 gap-6 animate-fade-up">
 
@@ -30,7 +44,7 @@ export default function IntakeSuccessScreen({ resumeFile, apiResult, onReset }) 
         </p>
       </div>
 
-      {/* FIX: show the generated opening question */}
+      {/* Opening question preview */}
       {apiResult?.question && (
         <div className="glass-card px-5 py-4 text-left w-full max-w-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -45,7 +59,7 @@ export default function IntakeSuccessScreen({ resumeFile, apiResult, onReset }) 
         </div>
       )}
 
-      {/* FIX: show source excerpts used to ground the question */}
+      {/* RAG source excerpts */}
       {apiResult?.sources?.length > 0 && (
         <div className="glass-card px-5 py-4 text-left w-full max-w-lg">
           <div className="flex items-center gap-2 mb-3">
@@ -74,15 +88,27 @@ export default function IntakeSuccessScreen({ resumeFile, apiResult, onReset }) 
         </p>
       )}
 
-      {/* Reset */}
-      <button
-        type="button"
-        onClick={onReset}
-        className="btn-ghost text-sm"
-      >
-        <RotateCcw size={14} />
-        Start over
-      </button>
+      {/* CTA buttons */}
+      <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-lg">
+        <button
+          type="button"
+          onClick={startInterview}
+          disabled={!apiResult?.sessionId}
+          className="btn-primary w-full sm:flex-1 justify-center disabled:opacity-40 disabled:cursor-not-allowed"
+        >
+          Start Interview
+          <ArrowRight size={15} />
+        </button>
+
+        <button
+          type="button"
+          onClick={onReset}
+          className="btn-ghost w-full sm:flex-1 justify-center"
+        >
+          <RotateCcw size={14} />
+          Start over
+        </button>
+      </div>
     </div>
   )
 }

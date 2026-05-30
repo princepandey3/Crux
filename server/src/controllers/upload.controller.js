@@ -1,20 +1,27 @@
 /**
- * src/controllers/upload.controller.js  (Phase 4 — replaces Phase 3 version)
+ * src/controllers/upload.controller.js  (Phase 5 update)
  * ─────────────────────────────────────────────────────────────────────────────
+ * Phase 5 change:
+ *   After generating the opening question, we now also create a chat_session
+ *   row in Supabase so /api/chat can look it up immediately.
+ *   The chatSessionId is returned alongside sessionId in the response.
+ *
  * POST /api/upload
  *
  * Full pipeline:
  *   1. Validate multipart fields (resume PDF + jobDescription text)
  *   2. Extract raw text from PDF via pdf-parse
- *   3. Ingest: chunk → embed → insert vectors into Supabase  [NEW in Phase 4]
- *   4. Generate: RAG retrieval → LLM → opening interview question  [NEW]
- *   5. Return session ID + question + source excerpts to the client
+ *   3. Ingest: chunk → embed → insert vectors into Supabase
+ *   4. Generate: RAG retrieval → LLM → opening interview question
+ *   5. Create chat_session row (NEW in Phase 5)
+ *   6. Return sessionId + chatSessionId + question + sources to the client
  */
 
-import pdfParse         from 'pdf-parse/lib/pdf-parse.js'
+import pdfParse          from 'pdf-parse/lib/pdf-parse.js'
 import { ingestDocuments, generateOpeningQuestion } from '../services/ragPipeline.js'
+import { createChatSession } from '../services/chatHistory.js'
 
-// ── Text normaliser (carried over from Phase 3) ───────────────────────────────
+// ── Text normaliser ────────────────────────────────────────────────────────────
 function cleanPdfText(raw) {
   return raw
     .split('\n')
@@ -80,11 +87,17 @@ export async function handleUpload(req, res, next) {
     // ── 4. Generate opening question ─────────────────────────────────────────
     const { question, sources } = await generateOpeningQuestion(sessionId)
 
-    // ── 5. Respond ───────────────────────────────────────────────────────────
+    // ── 5. Create chat session (Phase 5) ─────────────────────────────────────
+    // Pre-create the chat_sessions row so the /api/chat endpoint can look it
+    // up by interview_session_id without having to create it on first message.
+    const { chatSessionId } = await createChatSession(sessionId, question)
+
+    // ── 6. Respond ───────────────────────────────────────────────────────────
     return res.status(200).json({
       success: true,
       data: {
         sessionId,
+        chatSessionId,   // NEW — returned so frontend can link directly to chat
         question,
         sources,
         meta: {
